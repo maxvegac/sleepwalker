@@ -32,6 +32,7 @@ final class Preferences: ObservableObject {
     @Published var autoOffMinutes: Int { didSet { save(autoOffMinutes, for: .autoOffMinutes) } }
     @Published var wakeOnlyWithShortcut: Bool { didSet { save(wakeOnlyWithShortcut, for: .wakeOnlyWithShortcut) } }
     @Published var resleepSeconds: Int { didSet { save(resleepSeconds, for: .resleepSeconds) } }
+    @Published var keepAwakeWithLidClosed: Bool { didSet { save(keepAwakeWithLidClosed, for: .keepAwakeWithLidClosed) } }
     @Published var toggleAwakeShortcut: Shortcut? { didSet { saveShortcut(toggleAwakeShortcut, for: .toggleAwakeShortcut) } }
     @Published var toggleScreenShortcut: Shortcut? { didSet { saveShortcut(toggleScreenShortcut, for: .toggleScreenShortcut) } }
 
@@ -44,7 +45,8 @@ final class Preferences: ObservableObject {
 
     private enum Key: String {
         case activateOnLaunch, defaultDurationMinutes, displayPolicy, autoOffMinutes
-        case wakeOnlyWithShortcut, resleepSeconds, toggleAwakeShortcut, toggleScreenShortcut, hasShownWelcome
+        case wakeOnlyWithShortcut, resleepSeconds, keepAwakeWithLidClosed, toggleAwakeShortcut, toggleScreenShortcut
+        case hasShownWelcome
     }
 
     init(defaults: UserDefaults = .standard) {
@@ -56,6 +58,7 @@ final class Preferences: ObservableObject {
             Key.autoOffMinutes.rawValue: 10,
             Key.wakeOnlyWithShortcut.rawValue: true,
             Key.resleepSeconds.rawValue: 10,
+            Key.keepAwakeWithLidClosed.rawValue: false,
         ])
         activateOnLaunch = defaults.bool(forKey: Key.activateOnLaunch.rawValue)
         defaultDurationMinutes = defaults.integer(forKey: Key.defaultDurationMinutes.rawValue)
@@ -63,6 +66,7 @@ final class Preferences: ObservableObject {
         autoOffMinutes = max(defaults.integer(forKey: Key.autoOffMinutes.rawValue), 1)
         wakeOnlyWithShortcut = defaults.bool(forKey: Key.wakeOnlyWithShortcut.rawValue)
         resleepSeconds = max(defaults.integer(forKey: Key.resleepSeconds.rawValue), 2)
+        keepAwakeWithLidClosed = defaults.bool(forKey: Key.keepAwakeWithLidClosed.rawValue)
         toggleAwakeShortcut = Self.loadShortcut(defaults, key: .toggleAwakeShortcut, fallback: .toggleAwakeDefault)
         toggleScreenShortcut = Self.loadShortcut(defaults, key: .toggleScreenShortcut, fallback: .toggleScreenDefault)
     }

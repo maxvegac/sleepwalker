@@ -77,6 +77,15 @@ struct SettingsView: View {
             }
 
             Section("General") {
+                if ClosedLidGuard.hasLid {
+                    Toggle(isOn: Binding(
+                        get: { controller.keepsAwakeWithLidClosed },
+                        set: { controller.setKeepAwakeWithLidClosed($0) }
+                    )) {
+                        Text("Seguir despierto con la tapa cerrada")
+                        Text("Mientras Sleepwalker está activo y el cargador está conectado. Si lo desconectas con la tapa cerrada, el Mac se suspende. La primera vez pide la contraseña de un administrador.")
+                    }
+                }
                 Toggle("Abrir Sleepwalker al iniciar sesión", isOn: Binding(
                     get: { controller.launchAtLogin },
                     set: { controller.setLaunchAtLogin($0) }

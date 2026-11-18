@@ -3,6 +3,9 @@ APP := build/$(APP_NAME).app
 DMG := build/$(APP_NAME).dmg
 VERSION := $(shell /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" Resources/Info.plist)
 INSTALL_DIR := /Applications
+SUDOERS_RULE := /private/etc/sudoers.d/sleepwalker
+# Espera (hasta 5 s) a que Sleepwalker termine de cerrarse: al salir restaura la suspensión con la tapa cerrada.
+WAIT_FOR_EXIT = for i in $$(seq 25); do pgrep -x $(APP_NAME) >/dev/null || break; sleep 0.2; done
 
 .PHONY: all app run install uninstall dmg release icon clean
 
@@ -26,13 +29,16 @@ run: app
 
 install: app
 	-pkill -x $(APP_NAME)
+	@$(WAIT_FOR_EXIT)
 	rm -rf "$(INSTALL_DIR)/$(APP_NAME).app"
 	cp -R "$(APP)" "$(INSTALL_DIR)/"
 	open "$(INSTALL_DIR)/$(APP_NAME).app"
 
 uninstall:
 	-pkill -x $(APP_NAME)
+	@$(WAIT_FOR_EXIT)
 	rm -rf "$(INSTALL_DIR)/$(APP_NAME).app"
+	@if [ -e $(SUDOERS_RULE) ]; then echo "Quitando el permiso de la tapa cerrada (pide tu contraseña)"; sudo rm -f $(SUDOERS_RULE); fi
 
 # Imagen de disco para distribuir: la app y un acceso a Aplicaciones, con el ícono de la app en el volumen.
 # El ícono del volumen solo se puede marcar con la imagen montada, por eso se arma en lectura/escritura y luego se comprime.

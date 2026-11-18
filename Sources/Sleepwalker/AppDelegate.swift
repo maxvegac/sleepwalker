@@ -5,12 +5,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var controller: AppController?
     private var statusMenu: StatusMenuController?
     private var pendingURLs: [URL] = []
+    private var terminationSignal: DispatchSourceSignal?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let controller = AppController(preferences: .shared)
         self.controller = controller
         statusMenu = StatusMenuController(controller: controller)
         controller.start()
+        handleTerminationSignal()
 
         pendingURLs.forEach(controller.handle(url:))
         pendingURLs.removeAll()
@@ -27,6 +29,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         urls.forEach(controller.handle(url:))
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        controller?.prepareForTermination()
+    }
+
+    /// `pkill` (lo que hace `make install`) manda SIGTERM, que cierra la app sin pasar por `applicationWillTerminate`.
+    /// Se convierte en un cierre normal para que alcance a restaurar la suspensión con la tapa cerrada.
+    private func handleTerminationSignal() {
+        signal(SIGTERM, SIG_IGN)
+        let source = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
+        source.setEventHandler {
+            MainActor.assumeIsolated { NSApp.terminate(nil) }
+        }
+        source.resume()
+        terminationSignal = source
     }
 
     // Abrir la app cuando ya está corriendo (doble clic en Finder, Spotlight) muestra la configuración.

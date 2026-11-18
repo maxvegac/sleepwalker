@@ -87,6 +87,16 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
             durations.addItem(item)
         }
         menu.addItem(submenuItem("Activar durante", durations))
+        if ClosedLidGuard.hasLid {
+            let lid = actionItem("Seguir despierto con la tapa cerrada", #selector(toggleKeepAwakeWithLidClosed))
+            lid.state = controller.keepsAwakeWithLidClosed ? .on : .off
+            menu.addItem(lid)
+            if controller.keepsAwakeWithLidClosed, !controller.isOnACPower {
+                let note = NSMenuItem(title: "Sin cargador, cerrar la tapa lo suspende", action: nil, keyEquivalent: "")
+                note.isEnabled = false
+                menu.addItem(note)
+            }
+        }
 
         menu.addItem(.separator())
         menu.addItem(actionItem(controller.isScreenOff ? "Encender pantalla" : "Apagar pantalla", #selector(toggleScreen),
@@ -164,6 +174,10 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
 
     @objc private func activateForDuration(_ sender: NSMenuItem) {
         controller.activate(for: sender.tag > 0 ? TimeInterval(sender.tag * 60) : nil)
+    }
+
+    @objc private func toggleKeepAwakeWithLidClosed() {
+        controller.setKeepAwakeWithLidClosed(!controller.keepsAwakeWithLidClosed)
     }
 
     @objc private func toggleScreen() {

@@ -12,6 +12,7 @@ App de barra de menús para macOS, parecida a Caffeine: mantiene el Mac despiert
 ## Qué hace
 
 - **Mantener el Mac despierto.** Mientras Sleepwalker está activo, el Mac no se suspende por inactividad (lo mismo que `caffeinate -i`). Puede ser indefinidamente o por 15 min, 30 min, 1, 2, 4 u 8 horas.
+- **Seguir despierto con la tapa cerrada** (opcional). Con el cargador conectado, cierras la tapa y el Mac sigue con lo suyo: descargas, servidores, acceso remoto. Si desconectas el cargador con la tapa cerrada, se suspende como siempre.
 - **Apagar la pantalla sin suspender el Mac** con **⌃⌥⌘P**. La pantalla se apaga y el Mac sigue con lo suyo: descargas, compilaciones, servidores, música…
 - **Encenderla de nuevo con el mismo atajo.** Con *Solo el atajo vuelve a encenderla* (activado de fábrica), si la pantalla se enciende por un roce del mouse o una notificación, Sleepwalker muestra un aviso y la vuelve a apagar tras 10 s sin actividad. Desbloquear el Mac también la enciende.
 - **Qué hacer con la pantalla mientras está activo:**
@@ -68,7 +69,7 @@ open "sleepwalker://settings"
 
 ## Límites
 
-- **Cerrar la tapa** de un MacBook lo suspende igual, salvo en modo clamshell (pantalla externa y cargador). Evitarlo requiere `sudo pmset disablesleep 1`, y Sleepwalker no lo toca.
+- **Tapa cerrada:** de fábrica, cerrar la tapa suspende el Mac aunque Sleepwalker esté activo; ninguna app lo evita con permisos normales (tampoco Caffeine ni `caffeinate`). Para eso está *Seguir despierto con la tapa cerrada*, que funciona solo con el cargador conectado. Mientras está en efecto, *Suspender* del menú Apple tampoco suspende el Mac.
 - **Bloqueo:** si tienes *Solicitar contraseña* al apagar la pantalla, apagarla bloquea la sesión, como siempre en macOS. Al desbloquear, la pantalla queda encendida.
 - **Batería:** con la batería casi agotada, macOS suspende el Mac de todas formas.
 - **Apagar el Mac:** Sleepwalker evita la suspensión, no un apagado o reinicio que pidas tú o una actualización.
@@ -78,12 +79,14 @@ open "sleepwalker://settings"
 
 ```sh
 pmset -g assertions | grep Sleepwalker      # qué está reteniendo Sleepwalker ahora
+ioreg -rn IOPMrootDomain -d 1 | grep SleepDisabled   # Yes = cerrar la tapa no suspende el Mac
 /usr/bin/log stream --predicate 'subsystem == "com.maxvegac.sleepwalker"'
 ```
 
 ## Cómo funciona
 
 - **Despierto:** aserciones de IOKit (`IOPMAssertionCreateWithName`) del tipo `PreventUserIdleSystemSleep`, y `PreventUserIdleDisplaySleep` cuando la pantalla debe seguir encendida.
+- **Tapa cerrada:** lo único que evita la suspensión al cerrar la tapa es `pmset disablesleep 1`, que requiere root. La primera vez que activas la opción, Sleepwalker pide la contraseña de un administrador e instala `/etc/sudoers.d/sleepwalker`: una regla de sudo que solo permite ejecutar sin contraseña `pmset -a disablesleep 0` y `pmset -a disablesleep 1`. Sleepwalker desactiva la suspensión mientras está activo y con cargador, y la restaura al desactivarse, al desconectar el cargador o al salir. Para quitar el permiso: `sudo rm /etc/sudoers.d/sleepwalker` (o `make uninstall`).
 - **Apagar la pantalla:** `pmset displaysleepnow`, después de esperar a que sueltes las teclas del atajo.
 - **Encenderla:** `IOPMAssertionDeclareUserActivity`, lo mismo que `caffeinate -u`.
 - **Modo "solo el atajo":** mientras la pantalla debería estar apagada, Sleepwalker revisa cada segundo si se encendió. Para eso usa las notificaciones `screensDidSleep`/`screensDidWake` y `com.apple.screenIsLocked`/`Unlocked`, y el tiempo sin teclado ni mouse.
@@ -93,6 +96,7 @@ pmset -g assertions | grep Sleepwalker      # qué está reteniendo Sleepwalker 
 Sources/Sleepwalker/
   AppController.swift         estado: activo, duración, política de pantalla, atajos y URLs
   DisplayController.swift     apagar/encender la pantalla y el modo "solo el atajo"
+  ClosedLid.swift             seguir despierto con la tapa cerrada (pmset disablesleep vía sudo)
   ScreenOffHUD.swift          aviso que aparece si la pantalla se enciende sola
   StatusMenuController.swift  ícono y menú de la barra de menús
   SettingsWindow.swift        ventana de configuración y grabador de atajos

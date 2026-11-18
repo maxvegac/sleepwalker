@@ -6,6 +6,7 @@ import IOKit.pwr_mgt
 final class AppController: NSObject, ObservableObject {
     let preferences: Preferences
     let display = DisplayController()
+    let closedLid = ClosedLidGuard()
 
     @Published private(set) var isActive = false
     @Published private(set) var expiresAt: Date?
@@ -33,6 +34,8 @@ final class AppController: NSObject, ObservableObject {
     func start() {
         preferences.onChange = { [weak self] in self?.preferencesChanged() }
         display.onChange = { [weak self] in self?.refresh() }
+        closedLid.onPowerSourceChange = { [weak self] in self?.refresh() }
+        closedLid.startMonitoringPower()
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(systemDidWake(_:)),
                                                           name: NSWorkspace.didWakeNotification, object: nil)
         registerShortcuts()
@@ -108,6 +111,45 @@ final class AppController: NSObject, ObservableObject {
     /// Apps que ahora mismo impiden el apagado automático (videos, presentaciones…).
     var autoOffBlockers: [String] { SystemActivity.displaySleepBlockers() }
 
+    // MARK: - Tapa cerrada
+
+    /// La opción solo cuenta si además está instalado el permiso.
+    var keepsAwakeWithLidClosed: Bool { preferences.keepAwakeWithLidClosed && closedLid.isAuthorized }
+    var isOnACPower: Bool { ClosedLidGuard.isOnACPower }
+
+    func setKeepAwakeWithLidClosed(_ enabled: Bool) {
+        guard enabled, !closedLid.isAuthorized else {
+            preferences.keepAwakeWithLidClosed = enabled
+            return
+        }
+        // La contraseña se pide después del clic: el diálogo bloquea la app mientras está abierto.
+        objectWillChange.send()
+        Task { @MainActor [weak self] in self?.authorizeClosedLid() }
+    }
+
+    private func authorizeClosedLid() {
+        NSApp.activateCompat()
+        switch closedLid.authorize() {
+        case .authorized:
+            preferences.keepAwakeWithLidClosed = true
+        case .cancelled:
+            objectWillChange.send()
+        case .failed(let message):
+            objectWillChange.send()
+            let alert = NSAlert()
+            alert.messageText = "No se pudo dar el permiso para la tapa cerrada"
+            alert.informativeText = message
+            alert.runModal()
+        }
+        onChange?()
+    }
+
+    /// Al salir, cerrar la tapa vuelve a suspender el Mac. No se suspende aquí: salir con la tapa cerrada es, por
+    /// ejemplo, reinstalar por SSH.
+    func prepareForTermination() {
+        closedLid.update(wanted: false, sleepIfLidClosed: false)
+    }
+
     // MARK: - Atajos
 
     /// El atajo configurado, solo si macOS lo aceptó.
@@ -153,6 +195,7 @@ final class AppController: NSObject, ObservableObject {
         display.wakeOnlyWithShortcut = preferences.wakeOnlyWithShortcut
         display.resleepDelay = TimeInterval(preferences.resleepSeconds)
         display.shortcutHint = activeShortcut(for: .toggleScreen)?.displayString
+        closedLid.update(wanted: isActive && preferences.keepAwakeWithLidClosed)
         updateAutoOffTimer()
         onChange?()
     }
@@ -193,6 +236,7 @@ final class AppController: NSObject, ObservableObject {
 
     @objc private func systemDidWake(_ notification: Notification) {
         checkExpiry()
+        refresh()  // el cargador pudo cambiar mientras dormía
     }
 
     @objc private func checkExpiry() {
